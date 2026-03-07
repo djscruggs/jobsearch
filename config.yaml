@@ -1,0 +1,69 @@
+candidate:
+  name: "DJ Scruggs"
+  email: "me@djscruggs.com"
+  location: "Oklahoma City, OK"
+  remote_preference: "hybrid"       # "remote", "hybrid", or "onsite"
+  salary_floor: 130000              # minimum acceptable annual USD - EDIT THIS
+  preferred_stack:
+    - React
+    - TypeScript
+    - Python
+    - Node.js
+    - PostgreSQL
+    - GraphQL
+    - AWS
+    - Docker
+
+search:
+  hours_old: 72
+  results_per_query: 30
+  delay_between_sources: 8          # seconds between scraper calls
+  locations:
+    - "Remote"
+    - "Oklahoma City, OK"
+    - "Austin, TX"
+    - "Denver, CO"
+    - "Washington, DC"
+  terms:
+    - "senior software engineer"
+    - "senior full stack engineer"
+    - "senior frontend engineer"
+    - "senior backend engineer"
+    - "staff software engineer"
+    - "principal software engineer"
+    - "senior web developer"
+
+scoring:
+  model: "claude-sonnet-4-6"
+  batch_size: 8
+  auto_queue_threshold: 80
+  auto_pass_threshold: 50
+  target_industries:
+    - civic tech
+    - elections
+    - voting rights
+    - democracy
+    - government tech
+    - journalism
+    - local media
+    - nonprofit
+    - public interest
+    - climate
+    - education
+    - healthcare
+  disqualify_keywords:
+    - crypto
+    - web3
+    - blockchain
+    - nft
+    - gambling
+    - casino
+    - defense contractor
+    - weapons
+    - surveillance
+    - ad tech
+    - adtech
+
+pipeline:
+  max_cover_letters_per_run: 20
+  daemon_interval_hours: 6

@@ -1,0 +1,13 @@
+.env
+data/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+.uv/
+.fastembed_cache/
+.obsidian/
+*.pdf
+.DS_Store
+.claude/settings.local.json
