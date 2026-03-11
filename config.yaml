@@ -52,10 +52,6 @@ scoring:
     - education
     - healthcare
   disqualify_keywords:
-    - crypto
-    - web3
-    - blockchain
-    - nft
     - gambling
     - casino
     - defense contractor

@@ -36,7 +36,6 @@ TARGET INDUSTRIES (score higher):
 {chr(10).join('- ' + i for i in scoring['target_industries'])}
 
 HARD DISQUALIFIERS (set auto_disqualify=true, score=0):
-- Crypto / Web3 / blockchain / NFT
 - Gambling / casino / gaming
 - Defense / weapons / military contractors
 - Surveillance / ad-tech / data brokerage

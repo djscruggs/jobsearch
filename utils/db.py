@@ -157,6 +157,47 @@ def log_search(query: str, location: str, source: str, jobs_found: int, jobs_new
               jobs_found, jobs_new))
 
 
+def get_jobs(
+    status: str | None = None,
+    min_score: int | None = None,
+    search: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> tuple[list[dict], int]:
+    conditions = []
+    params: list = []
+
+    if status:
+        statuses = status.split(",")
+        placeholders = ",".join("?" * len(statuses))
+        conditions.append(f"status IN ({placeholders})")
+        params.extend(statuses)
+    if min_score is not None:
+        conditions.append("score >= ?")
+        params.append(min_score)
+    if search:
+        conditions.append("(title LIKE ? OR company LIKE ?)")
+        params.extend([f"%{search}%", f"%{search}%"])
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    with get_conn() as conn:
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM jobs {where}", params
+        ).fetchone()[0]
+        rows = conn.execute(
+            f"SELECT * FROM jobs {where} ORDER BY score DESC NULLS LAST, date_found DESC LIMIT ? OFFSET ?",
+            params + [limit, offset],
+        ).fetchall()
+    return [dict(r) for r in rows], total
+
+
+def get_job_by_id(job_id: int) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        return dict(row) if row else None
+
+
 def get_stats() -> dict:
     with get_conn() as conn:
         total = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]

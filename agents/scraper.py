@@ -6,7 +6,7 @@ from pathlib import Path
 import yaml
 
 from utils.db import insert_job, log_search
-from scrapers import jobspy_scraper, journalismjobs_scraper, usajobs_scraper
+from scrapers import jobspy_scraper, journalismjobs_scraper, usajobs_scraper, techjobsforgood_scraper, fastforward_scraper
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,13 @@ def _load_config() -> dict:
         return yaml.safe_load(f)
 
 
-def run(scrape_jobspy: bool = True, scrape_journalism: bool = True, scrape_usa: bool = True):
+def run(
+    scrape_jobspy: bool = True,
+    scrape_journalism: bool = True,
+    scrape_usa: bool = True,
+    scrape_techjobsforgood: bool = True,
+    scrape_fastforward: bool = True,
+):
     config = _load_config()
     search_cfg = config["search"]
     delay = search_cfg.get("delay_between_sources", 8)
@@ -80,5 +86,25 @@ def run(scrape_jobspy: bool = True, scrape_journalism: bool = True, scrape_usa: 
                     new += 1
             log_search(term, "remote", "usajobs", total, new)
             time.sleep(delay)
+
+    # --- Tech Jobs for Good ---
+    if scrape_techjobsforgood:
+        total = new = 0
+        for job in techjobsforgood_scraper.scrape(delay=delay):
+            total += 1
+            if _try_insert(job):
+                new += 1
+        log_search("tech", "techjobsforgood.com", "techjobsforgood", total, new)
+        time.sleep(delay)
+
+    # --- Fast Forward ---
+    if scrape_fastforward:
+        total = new = 0
+        for job in fastforward_scraper.scrape():
+            total += 1
+            if _try_insert(job):
+                new += 1
+        log_search("tech", "jobs.ffwd.org", "fastforward", total, new)
+        time.sleep(delay)
 
     logger.info("Scrape complete.")

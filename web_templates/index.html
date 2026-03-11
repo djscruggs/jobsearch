@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Job Hunter{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<div class="grid-3" style="margin-bottom: 24px;">
+  <div class="card">
+    <div style="font-size: 32px; font-weight: 700; color: var(--accent);">{{ stats.total }}</div>
+    <div class="muted" style="margin-top: 4px;">Total Jobs</div>
+  </div>
+  <div class="card">
+    <div style="font-size: 32px; font-weight: 700; color: var(--purple);">{{ (stats.by_status.get('queued', 0) + stats.by_status.get('scored', 0)) }}</div>
+    <div class="muted" style="margin-top: 4px;">To Review</div>
+  </div>
+  <div class="card">
+    <div style="font-size: 32px; font-weight: 700; color: var(--green);">{{ stats.by_status.get('applied', 0) }}</div>
+    <div class="muted" style="margin-top: 4px;">Applied</div>
+  </div>
+</div>
+
+<div class="grid-2" style="margin-bottom: 24px;">
+  <div class="card">
+    <h2 style="margin-bottom: 12px;">Status Breakdown</h2>
+    {% for status, count in stats.by_status.items() | sort(attribute='1', reverse=True) %}
+    {% set label_color = status_labels.get(status, ('Unknown', '#6b7280')) %}
+    <div style="display:flex; align-items:center; justify-content:space-between; padding: 6px 0; border-bottom: 1px solid var(--border);">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="badge" style="background: {{ label_color[1] }};">{{ label_color[0] }}</span>
+      </div>
+      <span style="font-weight: 600;">{{ count }}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h2 style="margin-bottom: 12px;">Top Scored Jobs</h2>
+    {% for job in stats.top_jobs %}
+    <div style="display:flex; align-items:center; justify-content:space-between; padding: 6px 0; border-bottom: 1px solid var(--border);">
+      <div>
+        <div style="font-size:13px; font-weight:500;">{{ job.title }}</div>
+        <div class="muted" style="font-size:11px;">{{ job.company }}</div>
+      </div>
+      <span style="font-size: 18px; font-weight: 700; color: var(--accent);">{{ job.score }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div style="display:flex; gap:12px;">
+  <a href="/jobs?status=queued,scored,reviewing" class="btn btn-primary">Review Queue →</a>
+  <a href="/jobs?status=rejected,pass" class="btn btn-ghost">View Rejected</a>
+</div>
+{% endblock %}

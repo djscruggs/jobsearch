@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %}{{ job.title }} @ {{ job.company }} — Job Hunter{% endblock %}
+{% block head %}
+<style>
+  .detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .score-big {
+    font-size: 48px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .meta-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .section { margin-bottom: 20px; }
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .breakdown-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .breakdown-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .breakdown-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .breakdown-val { font-size: 22px; font-weight: 700; }
+
+  .highlight-list { display: flex; flex-direction: column; gap: 6px; }
+  .highlight-item {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    font-size: 13px;
+  }
+
+  .description-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 13px;
+    line-height: 1.7;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--muted);
+  }
+
+  .cover-letter-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 13px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .actions-bar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    align-items: center;
+  }
+
+  .status-select {
+    padding: 6px 12px;
+    border-radius: 6px;
+  }
+
+  .notes-area {
+    width: 100%;
+    min-height: 80px;
+    resize: vertical;
+    padding: 10px;
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div style="margin-bottom:12px;">
+  <a href="javascript:history.back()" style="color:var(--muted); text-decoration:none; font-size:13px;">← Back</a>
+</div>
+
+<div class="detail-header">
+  <div>
+    <h1 style="margin-bottom:4px;">{{ job.title }}</h1>
+    <div style="font-size:18px; color:var(--muted);">{{ job.company }}</div>
+    <div class="meta-row">
+      {% if job.location %}<span>📍 {{ job.location }}</span>{% endif %}
+      {% if job.is_remote %}<span class="tag">Remote</span>{% endif %}
+      {% if job.salary_min or job.salary_max %}
+        <span>💰
+          {% if job.salary_min %}${{ "{:,.0f}".format(job.salary_min / 1000) }}k{% endif %}
+          {% if job.salary_min and job.salary_max %}–{% endif %}
+          {% if job.salary_max %}${{ "{:,.0f}".format(job.salary_max / 1000) }}k{% endif %}
+        </span>
+      {% endif %}
+      {% if job.date_posted and job.date_posted != 'nan' %}<span>📅 {{ job.date_posted }}</span>{% endif %}
+      <span class="badge" style="background:{{ job.status_color }};">{{ job.status_label }}</span>
+    </div>
+  </div>
+
+  {% if job.score is not none %}
+  {% set score = job.score %}
+  {% if score >= 80 %}{% set sc = '#8b5cf6' %}
+  {% elif score >= 60 %}{% set sc = '#3b82f6' %}
+  {% elif score >= 40 %}{% set sc = '#f59e0b' %}
+  {% else %}{% set sc = '#6b7280' %}{% endif %}
+  <div style="text-align:center; flex-shrink:0;">
+    <div class="score-big" style="color:{{ sc }};">{{ score }}</div>
+    <div style="font-size:11px; color:var(--muted); margin-top:2px;">SCORE</div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="actions-bar">
+  <a href="{{ job.url }}" target="_blank" class="btn btn-primary">Open Job Posting ↗</a>
+  <button onclick="setStatusDetail('reviewing')" class="btn btn-yellow">✓ Approve</button>
+  <button onclick="setStatusDetail('applied')" class="btn btn-green">Applied</button>
+  <button onclick="setStatusDetail('pass')" class="btn btn-ghost">Skip</button>
+  <button onclick="setStatusDetail('rejected')" class="btn btn-red btn-sm">Reject</button>
+  <select class="status-select" onchange="setStatusDetail(this.value)" id="status-select">
+    <option value="">Change status…</option>
+    {% for s, (label, color) in status_labels.items() %}
+    <option value="{{ s }}" {% if job.status == s %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+{% if job.auto_disqualified and job.disqualify_reason %}
+<div style="background: rgba(239,68,68,0.1); border:1px solid var(--red); border-radius:8px; padding:12px 16px; margin-bottom:20px; color:var(--red); font-size:13px;">
+  ✗ Auto-rejected: {{ job.disqualify_reason }}
+</div>
+{% endif %}
+
+{% if job.score_breakdown or job.highlights or job.concerns %}
+<div class="section">
+  <div class="section-title" style="cursor:pointer; user-select:none;" onclick="toggleSection('scores')">
+    ▾ Score Details
+  </div>
+  <div id="scores-section">
+    {% if job.score_breakdown %}
+    <div class="breakdown-grid" style="margin-bottom:12px;">
+      {% for key, val in job.score_breakdown.items() %}
+      <div class="breakdown-item">
+        <div class="breakdown-label">{{ key.replace('_', ' ').title() }}</div>
+        <div class="breakdown-val" style="color: {% if val >= 8 %}var(--green){% elif val >= 5 %}var(--yellow){% else %}var(--red){% endif %};">{{ val }}<span style="font-size:14px; color:var(--muted); font-weight:400;">/10</span></div>
+        <div class="score-bar" style="margin-top:6px;">
+          <div class="score-bar-fill" style="width:{{ val * 10 }}%; background: {% if val >= 8 %}var(--green){% elif val >= 5 %}var(--yellow){% else %}var(--red){% endif %};"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if job.score_reason %}
+    <div style="font-size:13px; color:var(--muted); background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:12px;">
+      {{ job.score_reason }}
+    </div>
+    {% endif %}
+
+    <div class="two-col">
+      {% if job.highlights %}
+      <div>
+        <div class="section-title">Highlights</div>
+        <div class="highlight-list">
+          {% for h in job.highlights %}
+          <div class="highlight-item"><span class="green">✓</span> {{ h }}</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if job.concerns %}
+      <div>
+        <div class="section-title">Concerns</div>
+        <div class="highlight-list">
+          {% for c in job.concerns %}
+          <div class="highlight-item"><span class="yellow">⚠</span> {{ c }}</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<hr class="divider">
+{% endif %}
+
+{% if job.cover_letter_text %}
+<div class="section">
+  <div class="section-title" style="cursor:pointer; user-select:none;" onclick="toggleSection('cl')">▾ Cover Letter</div>
+  <div id="cl-section">
+    <div class="cover-letter-box">{{ job.cover_letter_text }}</div>
+  </div>
+</div>
+<hr class="divider">
+{% endif %}
+
+{% if job.tailored_bullets %}
+<div class="section">
+  <div class="section-title" style="cursor:pointer; user-select:none;" onclick="toggleSection('bullets')">▾ Tailored Resume Bullets</div>
+  <div id="bullets-section">
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      {% for bullet in job.tailored_bullets %}
+      <div style="display:flex; gap:8px; font-size:13px; line-height:1.6;">
+        <span class="muted">•</span> {{ bullet }}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+<hr class="divider">
+{% endif %}
+
+{% if job.cold_outreach %}
+<div class="section">
+  <div class="section-title" style="cursor:pointer; user-select:none;" onclick="toggleSection('outreach')">▾ Cold Outreach</div>
+  <div id="outreach-section">
+    <div class="cover-letter-box">{{ job.cold_outreach }}</div>
+  </div>
+</div>
+<hr class="divider">
+{% endif %}
+
+<div class="section">
+  <div class="section-title">Notes</div>
+  <form id="notes-form">
+    <textarea class="notes-area" id="notes-text" name="notes" placeholder="Add notes…">{{ job.notes or '' }}</textarea>
+    <div style="margin-top:8px;">
+      <button type="button" onclick="saveNotes()" class="btn btn-primary btn-sm">Save Notes</button>
+    </div>
+  </form>
+</div>
+
+{% if job.description %}
+<div class="section">
+  <div class="section-title" style="cursor:pointer; user-select:none;" onclick="toggleSection('desc')">▾ Job Description</div>
+  <div id="desc-section" style="display:none;">
+    <div class="description-box">{{ job.description }}</div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const JOB_ID = {{ job.id }};
+
+async function setStatusDetail(status) {
+  if (!status) return;
+  const labels = { reviewing: 'Reviewing', pass: 'Passed', applied: 'Applied', rejected: 'Rejected', interview: 'Interview', offer: 'Offer', queued: 'Queued', scored: 'Scored', new: 'New' };
+  const ok = await updateStatus(JOB_ID, status, labels[status] || status);
+  if (ok) {
+    const badge = document.querySelector('.badge');
+    const colors = { reviewing: '#f59e0b', pass: '#6b7280', applied: '#10b981', rejected: '#ef4444', interview: '#06b6d4', offer: '#22c55e', queued: '#8b5cf6', scored: '#3b82f6' };
+    if (badge) {
+      badge.textContent = labels[status] || status;
+      badge.style.background = colors[status] || '#6b7280';
+    }
+    document.getElementById('status-select').value = status;
+  }
+}
+
+async function saveNotes() {
+  const fd = new FormData();
+  fd.append('notes', document.getElementById('notes-text').value);
+  const r = await fetch(`/jobs/${JOB_ID}/notes`, { method: 'POST', body: fd });
+  if (r.ok) showToast('Notes saved');
+}
+
+function toggleSection(name) {
+  const el = document.getElementById(name + '-section');
+  if (!el) return;
+  const hidden = el.style.display === 'none';
+  el.style.display = hidden ? '' : 'none';
+  const toggle = el.previousElementSibling;
+  if (toggle) toggle.textContent = toggle.textContent.replace(hidden ? '▾' : '▴', hidden ? '▴' : '▾');
+}
+</script>
+{% endblock %}

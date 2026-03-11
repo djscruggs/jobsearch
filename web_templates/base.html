@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Job Hunter{% endblock %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3349;
+      --text: #e2e8f0;
+      --muted: #8892a4;
+      --accent: #6366f1;
+      --accent-hover: #4f52d4;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --blue: #3b82f6;
+      --purple: #8b5cf6;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    nav .brand {
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.15s;
+    }
+    nav a:hover, nav a.active { color: var(--text); }
+
+    main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
+    h2 { font-size: 16px; font-weight: 600; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s;
+      text-decoration: none;
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { color: var(--text); border-color: var(--text); }
+    .btn-green { background: var(--green); color: white; }
+    .btn-red { background: var(--red); color: white; }
+    .btn-yellow { background: var(--yellow); color: #1a1a1a; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      color: white;
+    }
+
+    input, select, textarea {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 7px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+
+    .score-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .score-bar {
+      flex: 1;
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: var(--accent);
+    }
+    .score-num { font-size: 12px; color: var(--muted); min-width: 24px; text-align: right; }
+
+    .tag {
+      display: inline-block;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+    .muted { color: var(--muted); }
+    .green { color: var(--green); }
+    .yellow { color: var(--yellow); }
+    .red { color: var(--red); }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      z-index: 999;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.2s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <nav>
+    <a href="/" class="brand">⚡ Job Hunter</a>
+    <a href="/jobs?status=queued,scored,reviewing" {% if request.url.path == '/jobs' %}class="active"{% endif %}>Review Queue</a>
+    <a href="/jobs?status=rejected,pass" {% if 'rejected' in request.url.query %}class="active"{% endif %}>Rejected / Passed</a>
+    <a href="/jobs?status=applied,interview,offer">Pipeline</a>
+    <a href="/jobs">All Jobs</a>
+  </nav>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <div class="toast" id="toast"></div>
+  <script>
+    function showToast(msg, duration = 2500) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), duration);
+    }
+
+    async function updateStatus(jobId, status, label) {
+      const fd = new FormData();
+      fd.append('status', status);
+      const r = await fetch(`/jobs/${jobId}/status`, { method: 'POST', body: fd });
+      if (r.ok) {
+        showToast(`Marked as ${label}`);
+        return true;
+      }
+      return false;
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

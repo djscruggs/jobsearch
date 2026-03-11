@@ -20,6 +20,9 @@ dependencies = [
     "pyyaml>=6.0.1",
     "tenacity>=8.3.0",
     "schedule>=1.2.2",
+    "fastapi>=0.135.1",
+    "uvicorn>=0.41.0",
+    "python-multipart>=0.0.22",
 ]
 
 [tool.uv]
