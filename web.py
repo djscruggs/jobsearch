@@ -119,6 +119,22 @@ async def update_status(job_id: int, status: str = Form(...)):
     return JSONResponse({"ok": True, "status": status})
 
 
+@app.post("/jobs/bulk-status")
+async def bulk_status(request: Request):
+    data = await request.json()
+    ids = data.get("ids", [])
+    status = data.get("status")
+    if not ids or not status:
+        return JSONResponse({"error": "ids and status required"}, status_code=400)
+    updated = 0
+    for job_id in ids:
+        job = get_job_by_id(job_id)
+        if job:
+            update_job_field(job["url"], "status", status)
+            updated += 1
+    return JSONResponse({"ok": True, "updated": updated})
+
+
 @app.post("/jobs/{job_id}/notes")
 async def update_notes(job_id: int, notes: str = Form(...)):
     job = get_job_by_id(job_id)
