@@ -101,13 +101,50 @@ async def jobs_page(
     })
 
 
+@app.get("/api/jobs/{job_id}/neighbors")
+async def job_neighbors(
+    job_id: int,
+    status: str = "queued,scored,reviewing",
+    search: str = "",
+    min_score: int | None = None,
+):
+    rows, _ = get_jobs(status=status or None, min_score=min_score, search=search or None, limit=10000)
+    ids = [r["id"] for r in rows]
+    if job_id not in ids:
+        return JSONResponse({"prev": None, "next": None})
+    idx = ids.index(job_id)
+    return JSONResponse({
+        "prev": ids[idx - 1] if idx > 0 else None,
+        "next": ids[idx + 1] if idx < len(ids) - 1 else None,
+    })
+
+
 @app.get("/jobs/{job_id}", response_class=HTMLResponse)
-async def job_detail(request: Request, job_id: int):
+async def job_detail(
+    request: Request,
+    job_id: int,
+    status: str = "queued,scored,reviewing",
+    search: str = "",
+    min_score: int | None = None,
+):
     job = get_job_by_id(job_id)
     if not job:
         return HTMLResponse("Job not found", status_code=404)
     job = _enrich(job)
-    return templates.TemplateResponse("job_detail.html", {"request": request, "job": job, "status_labels": STATUS_LABELS})
+    # Build back URL preserving filter context
+    params = f"status={status}"
+    if search:
+        params += f"&search={search}"
+    if min_score:
+        params += f"&min_score={min_score}"
+    back_url = f"/jobs?{params}"
+    return templates.TemplateResponse("job_detail.html", {
+        "request": request,
+        "job": job,
+        "status_labels": STATUS_LABELS,
+        "back_url": back_url,
+        "filter_params": {"status": status, "search": search, "min_score": min_score or ""},
+    })
 
 
 @app.post("/jobs/{job_id}/status")

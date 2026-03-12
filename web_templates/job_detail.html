@@ -2,6 +2,38 @@
 {% block title %}{{ job.title }} @ {{ job.company }} — Job Hunter{% endblock %}
 {% block head %}
 <style>
+  .nav-arrows {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .nav-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .nav-arrow:hover { color: var(--text); border-color: var(--text); }
+  .nav-arrow.disabled { opacity: 0.3; pointer-events: none; }
+
+  .kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 10px;
+    color: var(--muted);
+    font-family: monospace;
+  }
+
   .detail-header {
     display: flex;
     justify-content: space-between;
@@ -106,8 +138,17 @@
 </style>
 {% endblock %}
 {% block content %}
-<div style="margin-bottom:12px;">
-  <a href="javascript:history.back()" style="color:var(--muted); text-decoration:none; font-size:13px;">← Back</a>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+  <a href="{{ back_url }}" style="color:var(--muted); text-decoration:none; font-size:13px;">← Back</a>
+  <div class="nav-arrows">
+    <span style="font-size:11px; color:var(--muted);">
+      <span class="kbd">j</span> next &nbsp;
+      <span class="kbd">k</span> prev &nbsp;
+      <span class="kbd">g</span><span class="kbd">i</span> list
+    </span>
+    <a id="nav-prev" href="#" class="nav-arrow disabled" title="Previous (k)">‹</a>
+    <a id="nav-next" href="#" class="nav-arrow disabled" title="Next (j)">›</a>
+  </div>
 </div>
 
 <div class="detail-header">
@@ -274,6 +315,12 @@
 {% block scripts %}
 <script>
 const JOB_ID = {{ job.id }};
+const FILTER_PARAMS = new URLSearchParams({
+  status: "{{ filter_params.status }}",
+  search: "{{ filter_params.search }}",
+  min_score: "{{ filter_params.min_score }}",
+});
+const BACK_URL = "{{ back_url }}";
 
 async function setStatusDetail(status) {
   if (!status) return;
@@ -305,5 +352,46 @@ function toggleSection(name) {
   const toggle = el.previousElementSibling;
   if (toggle) toggle.textContent = toggle.textContent.replace(hidden ? '▾' : '▴', hidden ? '▴' : '▾');
 }
+
+// --- Navigation ---
+let prevId = null, nextId = null;
+
+async function loadNeighbors() {
+  const r = await fetch(`/api/jobs/${JOB_ID}/neighbors?${FILTER_PARAMS}`);
+  if (!r.ok) return;
+  const { prev, next } = await r.json();
+  prevId = prev;
+  nextId = next;
+  const buildUrl = id => `/jobs/${id}?${FILTER_PARAMS}`;
+  const prevEl = document.getElementById('nav-prev');
+  const nextEl = document.getElementById('nav-next');
+  if (prev) { prevEl.href = buildUrl(prev); prevEl.classList.remove('disabled'); }
+  if (next) { nextEl.href = buildUrl(next); nextEl.classList.remove('disabled'); }
+}
+
+loadNeighbors();
+
+// Keyboard shortcuts (skip when typing in inputs)
+let gPressed = false, gTimer = null;
+document.addEventListener('keydown', e => {
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+  if (gPressed) {
+    clearTimeout(gTimer);
+    gPressed = false;
+    if (e.key === 'i') { window.location.href = BACK_URL; return; }
+  }
+
+  if (e.key === 'g') {
+    gPressed = true;
+    gTimer = setTimeout(() => { gPressed = false; }, 1000);
+    return;
+  }
+
+  if (e.key === 'j' && nextId) window.location.href = `/jobs/${nextId}?${FILTER_PARAMS}`;
+  if (e.key === 'k' && prevId) window.location.href = `/jobs/${prevId}?${FILTER_PARAMS}`;
+  if (e.key === 'u') window.location.href = BACK_URL;
+});
 </script>
 {% endblock %}

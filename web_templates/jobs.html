@@ -182,7 +182,7 @@
         </td>
         <td>
           <div style="font-weight: 500;">
-            <a href="/jobs/{{ job.id }}" style="color: var(--text); text-decoration: none;">{{ job.title }}</a>
+            <a href="/jobs/{{ job.id }}?status={{ status }}&search={{ search }}&min_score={{ min_score }}" style="color: var(--text); text-decoration: none;">{{ job.title }}</a>
           </div>
           <div style="margin-top:3px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
             {% if job.score_breakdown %}
@@ -217,7 +217,7 @@
               <button onclick="setStatus({{ job.id }}, 'pass', this)" class="btn btn-ghost btn-sm">Skip</button>
               {% endif %}
             {% endif %}
-            <a href="/jobs/{{ job.id }}" class="btn btn-ghost btn-sm">Detail</a>
+            <a href="/jobs/{{ job.id }}?status={{ status }}&search={{ search }}&min_score={{ min_score }}" class="btn btn-ghost btn-sm">Detail</a>
           </div>
         </td>
       </tr>
