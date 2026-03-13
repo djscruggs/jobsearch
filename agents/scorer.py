@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -113,12 +114,58 @@ def run():
         for job in batch:
             result = results_by_url.get(job["url"])
             if result:
+                result = _apply_age_penalty(result, job)
                 update_job_score(job["url"], result)
                 scored += 1
             else:
                 logger.warning("No score returned for: %s", job["url"])
 
     logger.info("Scored %d/%d jobs.", scored, len(jobs))
+
+
+def _age_days(job: dict) -> float | None:
+    """Return age in days based on date_posted, falling back to date_found."""
+    for field in ("date_posted", "date_found"):
+        raw = job.get(field)
+        if not raw:
+            continue
+        try:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return (datetime.now(timezone.utc) - dt).total_seconds() / 86400
+        except Exception:
+            continue
+    return None
+
+
+def _apply_age_penalty(result: dict, job: dict) -> dict:
+    """Downweight score for listings older than 3 days. Max 30% reduction at 14+ days."""
+    if result.get("auto_disqualify"):
+        return result
+
+    age = _age_days(job)
+    if age is None or age <= 3:
+        return result
+
+    # Linear decay: 0% at day 3, 30% at day 14+
+    penalty_frac = min((age - 3) / 11, 1.0) * 0.30
+    original = result["score"]
+    result["score"] = max(0, round(original * (1 - penalty_frac)))
+
+    concerns = result.get("concerns", [])
+    if age >= 14:
+        concerns = [c for c in concerns if "stale" not in c.lower()]
+        concerns.append(f"Listing is {int(age)} days old — may be filled")
+    elif age >= 7:
+        concerns = [c for c in concerns if "stale" not in c.lower()]
+        concerns.append(f"Listing is {int(age)} days old")
+    result["concerns"] = concerns
+
+    if original != result["score"]:
+        logger.debug("Age penalty: %s days → score %d→%d", round(age, 1), original, result["score"])
+
+    return result
 
 
 def _parse_json_array(text: str) -> list[dict]:

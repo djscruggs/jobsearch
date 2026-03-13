@@ -74,14 +74,15 @@ async def jobs_page(
     request: Request,
     status: str = "queued,scored,reviewing",
     search: str = "",
-    min_score: int | None = None,
+    min_score: str = "",
     page: int = 1,
 ):
     limit = 25
     offset = (page - 1) * limit
+    min_score_int = int(min_score) if min_score and min_score.strip().isdigit() else None
     rows, total = get_jobs(
         status=status or None,
-        min_score=min_score,
+        min_score=min_score_int,
         search=search or None,
         limit=limit,
         offset=offset,
@@ -96,7 +97,7 @@ async def jobs_page(
         "pages": pages,
         "status": status,
         "search": search,
-        "min_score": min_score or "",
+        "min_score": min_score_int or "",
         "status_labels": STATUS_LABELS,
     })
 
@@ -106,9 +107,10 @@ async def job_neighbors(
     job_id: int,
     status: str = "queued,scored,reviewing",
     search: str = "",
-    min_score: int | None = None,
+    min_score: str = "",
 ):
-    rows, _ = get_jobs(status=status or None, min_score=min_score, search=search or None, limit=10000)
+    min_score_int = int(min_score) if min_score and min_score.strip().isdigit() else None
+    rows, _ = get_jobs(status=status or None, min_score=min_score_int, search=search or None, limit=10000)
     ids = [r["id"] for r in rows]
     if job_id not in ids:
         return JSONResponse({"prev": None, "next": None})
@@ -125,18 +127,19 @@ async def job_detail(
     job_id: int,
     status: str = "queued,scored,reviewing",
     search: str = "",
-    min_score: int | None = None,
+    min_score: str = "",
 ):
     job = get_job_by_id(job_id)
     if not job:
         return HTMLResponse("Job not found", status_code=404)
     job = _enrich(job)
+    min_score_int = int(min_score) if min_score and min_score.strip().isdigit() else None
     # Build back URL preserving filter context
     params = f"status={status}"
     if search:
         params += f"&search={search}"
-    if min_score:
-        params += f"&min_score={min_score}"
+    if min_score_int is not None:
+        params += f"&min_score={min_score_int}"
     back_url = f"/jobs?{params}"
     return templates.TemplateResponse("job_detail.html", {
         "request": request,
