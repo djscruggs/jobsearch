@@ -6,7 +6,7 @@ from pathlib import Path
 import yaml
 
 from utils.db import insert_job, log_search
-from scrapers import jobspy_scraper, journalismjobs_scraper, usajobs_scraper, techjobsforgood_scraper, fastforward_scraper, email_scraper
+from scrapers import jobspy_scraper, journalismjobs_scraper, usajobs_scraper, techjobsforgood_scraper, fastforward_scraper, levelsfyi_scraper, email_scraper
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ def run(
     scrape_usa: bool = True,
     scrape_techjobsforgood: bool = True,
     scrape_fastforward: bool = True,
+    scrape_levelsfyi: bool = True,
     scrape_email: bool = True,
 ):
     config = _load_config()
@@ -106,6 +107,16 @@ def run(
             if _try_insert(job):
                 new += 1
         log_search("tech", "jobs.ffwd.org", "fastforward", total, new)
+        time.sleep(delay)
+
+    # --- levels.fyi ---
+    if scrape_levelsfyi:
+        total = new = 0
+        for job in levelsfyi_scraper.scrape(terms, delay):
+            total += 1
+            if _try_insert(job):
+                new += 1
+        log_search("senior engineer", "levels.fyi", "levelsfyi", total, new)
         time.sleep(delay)
 
     # --- Email job alerts ---
