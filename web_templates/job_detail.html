@@ -165,7 +165,8 @@
           {% if job.salary_max %}${{ "{:,.0f}".format(job.salary_max / 1000) }}k{% endif %}
         </span>
       {% endif %}
-      {% if job.date_posted and job.date_posted != 'nan' %}<span>📅 {{ job.date_posted }}</span>{% endif %}
+      {% if job.date_posted and job.date_posted != 'nan' %}<span>📅 Posted {{ job.date_posted[:10] }}</span>{% endif %}
+      {% if job.date_found %}<span>🔍 Found {{ job.date_found[:10] }}</span>{% endif %}
       <span class="badge" style="background:{{ job.status_color }};">{{ job.status_label }}</span>
     </div>
   </div>
