@@ -251,6 +251,176 @@ def _parse_indeed(html: str) -> list[dict]:
     return jobs
 
 
+def _resolve_redirect(url: str, timeout: float = 5.0) -> str:
+    """Follow a redirect chain and return the final URL. Returns original on failure."""
+    import httpx
+    try:
+        r = httpx.head(url, follow_redirects=True, timeout=timeout)
+        return str(r.url)
+    except Exception:
+        try:
+            r = httpx.get(url, follow_redirects=True, timeout=timeout)
+            return str(r.url)
+        except Exception:
+            return url
+
+
+def _parse_welcometothejungle(html: str) -> list[dict]:
+    """WTTJ emails use SendGrid tracking URLs — resolve redirects to get real job URLs."""
+    soup = BeautifulSoup(html, "lxml")
+    jobs = []
+
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        # Only follow SendGrid links from WTTJ emails
+        if "sendgrid.net" not in href and "welcometothejungle.com" not in href:
+            continue
+        text = a.get_text(strip=True)
+        if not text or not TECH_KEYWORDS.search(text):
+            continue
+        resolved = _resolve_redirect(href)
+        if "welcometothejungle.com/jobs/" not in resolved and "welcometothejungle.com/en/companies/" not in resolved:
+            continue
+        url = re.sub(r"\?.*", "", resolved)
+        parent = a.find_parent(["td", "div", "li", "tr"])
+        company, location = "Unknown", ""
+        if parent:
+            texts = [t.strip() for t in parent.stripped_strings if t.strip() and t.strip() != text]
+            if texts:
+                company = texts[0]
+            if len(texts) > 1:
+                location = texts[1]
+        jobs.append({
+            "source": "email_welcometothejungle",
+            "title": text,
+            "company": company,
+            "location": location,
+            "url": url,
+        })
+
+    return jobs
+
+
+def _parse_remotehunter(html: str) -> list[dict]:
+    """RemoteHunter plain-text emails: company / title / location / salary / Apply Now (url)"""
+    soup = BeautifulSoup(html, "lxml")
+    text = soup.get_text(separator="\n")
+    jobs = []
+
+    # Pattern: Apply Now link with URL in parens follows job block
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if "remotehunter.com/apply-with-ai/" not in href and "remotehunter.com/jobs/" not in href:
+            continue
+        url = re.sub(r"\?.*", "", href)
+        # Walk back through preceding text lines to find title/company/location
+        preceding = a.find_previous(string=re.compile(r"\S"))
+        block_text = ""
+        node = a
+        for _ in range(10):
+            node = node.find_previous(string=re.compile(r"\S"))
+            if not node:
+                break
+            t = node.strip()
+            if t in ("Apply Now", "View Job"):
+                continue
+            block_text = t + "\n" + block_text
+        lines = [l.strip() for l in block_text.splitlines() if l.strip()]
+        lines = [l for l in lines if l not in ("Apply Now", "View Job")]
+        if len(lines) < 2:
+            continue
+        title = lines[-1]
+        company = lines[-2] if len(lines) >= 2 else "Unknown"
+        location = ""
+        # location/salary often appears as "Remote" or "City, ST"
+        for l in lines:
+            if re.match(r"(Remote|[A-Z][a-z]+,\s+[A-Z]{2})", l):
+                location = l
+                break
+        if not TECH_KEYWORDS.search(title):
+            continue
+        jobs.append({
+            "source": "email_remotehunter",
+            "title": title,
+            "company": company,
+            "location": location,
+            "url": url,
+        })
+
+    return jobs
+
+
+def _parse_monster(html: str) -> list[dict]:
+    """Monster alert emails: plain text with 'Title Company - City - ST' pattern."""
+    soup = BeautifulSoup(html, "lxml")
+    jobs = []
+
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if "monster.com" not in href:
+            continue
+        # Job links contain /job/ or viewjob
+        if "/job/" not in href and "viewjob" not in href and "/jobs/" not in href:
+            continue
+        title = a.get_text(strip=True)
+        if not title or not TECH_KEYWORDS.search(title):
+            continue
+        url = re.sub(r"\?.*", "", href)
+        parent = a.find_parent(["td", "div", "li", "tr"])
+        company, location = "Unknown", ""
+        if parent:
+            texts = [t.strip() for t in parent.stripped_strings if t.strip() and t.strip() != title]
+            # Monster format: "Company - City - ST"
+            if texts:
+                parts = re.split(r"\s+-\s+", texts[0])
+                company = parts[0].strip()
+                if len(parts) >= 3:
+                    location = f"{parts[1].strip()}, {parts[2].strip()}"
+                elif len(parts) == 2:
+                    location = parts[1].strip()
+        jobs.append({
+            "source": "email_monster",
+            "title": title,
+            "company": company,
+            "location": location,
+            "url": url,
+        })
+
+    return jobs
+
+
+def _parse_builtin(html: str) -> list[dict]:
+    soup = BeautifulSoup(html, "lxml")
+    jobs = []
+
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if "builtin" not in href or "/job/" not in href:
+            continue
+        title = a.get_text(strip=True)
+        if not title or not TECH_KEYWORDS.search(title):
+            continue
+        url = re.sub(r"\?.*", "", href)
+        parent = a.find_parent(["td", "div", "li", "tr"])
+        company = "Unknown"
+        location = ""
+        if parent:
+            text_nodes = [t.strip() for t in parent.stripped_strings if t.strip() != title]
+            if text_nodes:
+                company = text_nodes[0]
+            if len(text_nodes) > 1:
+                location = text_nodes[1]
+        jobs.append({
+            "source": "email_builtin",
+            "title": title,
+            "company": company,
+            "location": location,
+            "url": url,
+        })
+
+    return jobs
+
+
 def _parse_ziprecruiter(html: str) -> list[dict]:
     soup = BeautifulSoup(html, "lxml")
     jobs = []
@@ -288,6 +458,10 @@ DOMAIN_PARSERS = {
     "glassdoor.com": _parse_glassdoor,
     "indeed.com": _parse_indeed,
     "ziprecruiter.com": _parse_ziprecruiter,
+    "builtin.com": _parse_builtin,
+    "remotehunter.com": _parse_remotehunter,
+    "monster.com": _parse_monster,
+    "welcometothejungle.com": _parse_welcometothejungle,
 }
 
 

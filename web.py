@@ -1,10 +1,38 @@
 """Web UI for job-hunter review queue."""
+import asyncio
 import json
+import os
+import signal
+import socket
 import webbrowser
 from pathlib import Path
 
+
+def _free_port(port: int) -> None:
+    """Kill any process already listening on *port* so uvicorn can bind cleanly."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if s.connect_ex(("127.0.0.1", port)) != 0:
+            return  # port is free
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["lsof", "-ti", f":{port}"],
+            capture_output=True, text=True
+        )
+        pids = [int(p) for p in result.stdout.split() if p.strip().isdigit()]
+        current = os.getpid()
+        for pid in pids:
+            if pid != current:
+                print(f"[web] Port {port} in use by PID {pid} — killing it.")
+                os.kill(pid, signal.SIGTERM)
+    except Exception as e:
+        print(f"[web] Warning: could not free port {port}: {e}")
+
+
+_free_port(8000)
+
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -187,3 +215,57 @@ async def update_notes(job_id: int, notes: str = Form(...)):
 @app.get("/api/stats")
 async def api_stats():
     return get_stats()
+
+
+@app.get("/api/pipeline/stream")
+async def stream_scores():
+    """SSE endpoint — streams scoring reasoning tokens from score_jobs_node."""
+    from graph.nodes.score import score_queue
+
+    async def generate():
+        while True:
+            try:
+                token = await asyncio.wait_for(score_queue.get(), timeout=30.0)
+            except asyncio.TimeoutError:
+                yield "data: [timeout]\n\n"
+                break
+            if token is None:
+                yield "data: [done]\n\n"
+                break
+            # Escape newlines for SSE protocol
+            safe = token.replace("\n", "\\n")
+            yield f"data: {safe}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@app.post("/api/pipeline/run")
+async def run_pipeline(request: Request):
+    """Trigger a background pipeline run. Returns immediately."""
+    data = await request.json()
+    mode = data.get("mode", "full")
+
+    async def _run():
+        import asyncio
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _invoke_pipeline, mode)
+
+    def _invoke_pipeline(mode: str):
+        from utils.db import init_db as _init
+        from graph.pipeline import build_graph
+        from datetime import datetime
+        _init()
+        graph = build_graph()
+        thread_id = f"web-run-{datetime.now().isoformat()}"
+        config = {"configurable": {"thread_id": thread_id}}
+        initial_state = {
+            "run_mode": mode,
+            "thread_id": thread_id,
+            "jobs_found": 0,
+            "jobs_new": 0,
+            "scrape_errors": [],
+        }
+        graph.invoke(initial_state, config)
+
+    asyncio.create_task(_run())
+    return JSONResponse({"ok": True, "mode": mode})
