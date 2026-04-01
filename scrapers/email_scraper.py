@@ -503,6 +503,50 @@ def _parse_themuse(html: str) -> list[dict]:
     return jobs
 
 
+def _parse_arena(html: str) -> list[dict]:
+    """Arena Careers digest emails: markdown-style bullet list.
+    Format: - [emojis Title | Organization | Salary | Location](growth.arena.run link)
+    Mostly political jobs — filter strictly by tech keywords. Resolve redirect for URL.
+    """
+    soup = BeautifulSoup(html, "lxml")
+    jobs = []
+
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if "growth.arena.run/email/click" not in href:
+            continue
+        text = a.get_text(strip=True)
+        if not text or not TECH_KEYWORDS.search(text):
+            continue
+        # Skip nav/boilerplate links
+        skip_phrases = ("view hundreds", "talent bank", "post your job", "feature your job",
+                        "support arena", "careers.arena.run", "unsubscribe", "toolkit",
+                        "resume", "interview", "negotiate", "hiring guide", "network")
+        if any(p in text.lower() for p in skip_phrases):
+            continue
+
+        # Parse "Title | Organization | Salary | Location" — strip leading emojis
+        clean = re.sub(r"^[\U0001F000-\U0001FFFF\u2600-\u26FF\u2700-\u27BF\s]+", "", text).strip()
+        parts = [p.strip() for p in clean.split("|")]
+        title = parts[0] if parts else clean
+        company = parts[1] if len(parts) > 1 else "Unknown"
+        # Last part is usually location, second-to-last may be salary
+        location = parts[-1] if len(parts) > 2 else ""
+
+        resolved = _resolve_redirect(href)
+        url = re.sub(r"\?.*", "", resolved)
+
+        jobs.append({
+            "source": "email_arena",
+            "title": title,
+            "company": company,
+            "location": location,
+            "url": url,
+        })
+
+    return jobs
+
+
 DOMAIN_PARSERS = {
     "linkedin.com": _parse_linkedin,
     "glassdoor.com": _parse_glassdoor,
@@ -513,6 +557,7 @@ DOMAIN_PARSERS = {
     "monster.com": _parse_monster,
     "welcometothejungle.com": _parse_welcometothejungle,
     "themuse.com": _parse_themuse,
+    "arena.run": _parse_arena,
 }
 
 
