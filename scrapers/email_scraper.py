@@ -453,6 +453,56 @@ def _parse_ziprecruiter(html: str) -> list[dict]:
     return jobs
 
 
+def _parse_themuse(html: str) -> list[dict]:
+    """The Muse emails: plain-text blocks of Company / Title / Location + VIEW JOB (sendgrid url).
+    Parse structure from plain text; resolve one SendGrid link per job to get the real URL.
+    """
+    soup = BeautifulSoup(html, "lxml")
+    text = soup.get_text(separator="\n")
+    jobs = []
+
+    # Collect all SendGrid VIEW JOB links in order
+    view_job_links = []
+    for a in soup.find_all("a", href=True):
+        if "sendgrid.net" in a["href"] and a.get_text(strip=True) == "VIEW JOB":
+            view_job_links.append(a["href"])
+
+    # Parse plain-text blocks: each job is 3 lines — Company, Title, Location
+    # followed by a location link and VIEW JOB link (which we have above)
+    # Split on blank lines and look for tech-keyword titles
+    blocks = re.split(r"\n{2,}", text.strip())
+    job_index = 0
+    for block in blocks:
+        lines = [l.strip() for l in block.splitlines() if l.strip()]
+        # A job block has at least 3 lines: company, title, location
+        if len(lines) < 3:
+            continue
+        # Heuristic: second line should match tech keywords (it's the title)
+        if not TECH_KEYWORDS.search(lines[1]):
+            continue
+        # Skip nav/footer blocks
+        if any(kw in lines[0].lower() for kw in ("view all", "unsubscribe", "copyright", "coaching", "advice")):
+            continue
+        company = lines[0]
+        title = lines[1]
+        location = lines[2]
+        if job_index >= len(view_job_links):
+            break
+        raw_url = view_job_links[job_index]
+        job_index += 1
+        resolved = _resolve_redirect(raw_url)
+        url = re.sub(r"\?.*", "", resolved)
+        jobs.append({
+            "source": "email_themuse",
+            "title": title,
+            "company": company,
+            "location": location,
+            "url": url,
+        })
+
+    return jobs
+
+
 DOMAIN_PARSERS = {
     "linkedin.com": _parse_linkedin,
     "glassdoor.com": _parse_glassdoor,
@@ -462,6 +512,7 @@ DOMAIN_PARSERS = {
     "remotehunter.com": _parse_remotehunter,
     "monster.com": _parse_monster,
     "welcometothejungle.com": _parse_welcometothejungle,
+    "themuse.com": _parse_themuse,
 }
 
 
